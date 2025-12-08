@@ -83,12 +83,9 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="button-group">
+        <div class="button-group single">
           <button id="capture-btn" class="btn btn-secondary">
             📷 Capture Screenshot
-          </button>
-          <button id="refresh-btn" class="btn btn-secondary">
-            🔄 Refresh Page Errors
           </button>
         </div>
 
@@ -97,7 +94,7 @@
           <button class="tab active" data-tab="crashes">Crashes</button>
           <button class="tab" data-tab="api">API Errors</button>
           <button class="tab" data-tab="console">Console</button>
-          <button class="tab" data-tab="requests">All Requests</button>
+          <button class="tab" data-tab="screenshots">Screenshots</button>
         </div>
 
         <!-- Error List -->
@@ -109,12 +106,9 @@
         </div>
 
         <!-- Export Buttons -->
-        <div class="export-section">
+        <div class="export-section two-col">
           <button id="export-btn" class="btn btn-primary">
             📄 Export Report
-          </button>
-          <button id="ticket-btn" class="btn btn-primary">
-            🎫 Generate Ticket
           </button>
           <button id="clear-btn" class="btn btn-danger">
             🗑️ Clear All
@@ -124,6 +118,27 @@
         <!-- Result Message -->
         <div id="result" class="result"></div>
       </main>
+    </div>
+
+    <!-- Screenshot Modal -->
+    <div id="screenshot-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <span id="modal-title">Screenshot</span>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <img id="screenshot-img" src="" alt="Screenshot">
+          <div class="screenshot-info">
+            <p><strong>Reason:</strong> <span id="screenshot-reason"></span></p>
+            <p><strong>Time:</strong> <span id="screenshot-time"></span></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="download-screenshot" class="btn btn-primary">📥 Download</button>
+        </div>
+      </div>
     </div>
   </div>
   <script src="popup.js"></script>

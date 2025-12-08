@@ -19,15 +19,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   const screenshotCount = document.getElementById("screenshot-count");
 
   const captureBtn = document.getElementById("capture-btn");
-  const refreshBtn = document.getElementById("refresh-btn");
   const exportBtn = document.getElementById("export-btn");
-  const ticketBtn = document.getElementById("ticket-btn");
   const clearBtn = document.getElementById("clear-btn");
   const tabs = document.querySelectorAll(".tab");
+
+  // Screenshot modal elements
+  const screenshotModal = document.getElementById("screenshot-modal");
+  const modalClose = document.getElementById("modal-close");
+  const modalBackdrop = screenshotModal?.querySelector(".modal-backdrop");
+  const screenshotImg = document.getElementById("screenshot-img");
+  const screenshotReason = document.getElementById("screenshot-reason");
+  const screenshotTime = document.getElementById("screenshot-time");
+  const downloadScreenshot = document.getElementById("download-screenshot");
 
   let currentTab = "crashes";
   let data = null;
   let isTracking = false;
+  let currentScreenshot = null;
 
   // =============================================
   // CONSENT CHECK
@@ -112,16 +120,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     showResult("Tracking enabled! Errors will be captured.");
   });
 
-  // Toggle tracking
+  // Toggle tracking - when disabled, show consent screen
   toggleTracking.addEventListener("click", async () => {
     isTracking = !isTracking;
-    await chrome.storage.local.set({ trackingEnabled: isTracking });
-    await chrome.runtime.sendMessage({
-      action: "setTrackingEnabled",
-      enabled: isTracking,
-    });
-    updateToggle();
-    showResult(isTracking ? "Tracking enabled" : "Tracking paused");
+
+    if (!isTracking) {
+      // User is disabling tracking - reset consent and show start screen
+      await chrome.storage.local.set({
+        userConsent: false,
+        trackingEnabled: false,
+      });
+      await chrome.runtime.sendMessage({
+        action: "setTrackingEnabled",
+        enabled: false,
+      });
+      showConsent();
+      showResult("Tracking disabled");
+    } else {
+      await chrome.storage.local.set({ trackingEnabled: true });
+      await chrome.runtime.sendMessage({
+        action: "setTrackingEnabled",
+        enabled: true,
+      });
+      updateToggle();
+      showResult("Tracking enabled");
+    }
   });
 
   // =============================================
@@ -293,9 +316,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Combine console errors and page errors
         items = [...(data.consoleErrors || []), ...(data.pageErrors || [])];
         break;
-      case "requests":
-        // ALL API requests
-        items = data.apiRequests || [];
+      case "screenshots":
+        items = data.screenshots || [];
         break;
     }
 
@@ -310,9 +332,65 @@ document.addEventListener("DOMContentLoaded", async () => {
     items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     items = items.slice(0, 30);
 
-    errorList.innerHTML = items
-      .map((item) => renderItem(item, currentTab))
-      .join("");
+    if (currentTab === "screenshots") {
+      errorList.innerHTML = items
+        .map((item, idx) => renderScreenshotItem(item, idx))
+        .join("");
+      // Add click handlers for screenshots
+      document.querySelectorAll(".screenshot-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          const idx = parseInt(el.dataset.idx);
+          openScreenshotModal(items[idx]);
+        });
+      });
+    } else {
+      errorList.innerHTML = items
+        .map((item) => renderItem(item, currentTab))
+        .join("");
+    }
+  }
+
+  function renderScreenshotItem(item, idx) {
+    const time = formatTime(item.timestamp);
+    const reasonText = item.reason || "manual";
+    const hasImage = item.dataUrl && item.dataUrl !== "[image]";
+
+    return `
+      <div class="screenshot-item" data-idx="${idx}">
+        ${
+          hasImage
+            ? `<img class="screenshot-thumb" src="${item.dataUrl}" alt="Screenshot">`
+            : `<div class="screenshot-thumb" style="background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;">📷</div>`
+        }
+        <div class="screenshot-details">
+          <div class="screenshot-reason-text">${escapeHtml(reasonText)}</div>
+          <div class="screenshot-time-text">${time}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function openScreenshotModal(screenshot) {
+    if (!screenshot) return;
+    currentScreenshot = screenshot;
+
+    if (screenshot.dataUrl && screenshot.dataUrl !== "[image]") {
+      screenshotImg.src = screenshot.dataUrl;
+      screenshotImg.style.display = "block";
+    } else {
+      screenshotImg.style.display = "none";
+    }
+
+    screenshotReason.textContent = screenshot.reason || "manual";
+    screenshotTime.textContent = new Date(
+      screenshot.timestamp
+    ).toLocaleString();
+    screenshotModal.classList.remove("hidden");
+  }
+
+  function closeScreenshotModal() {
+    screenshotModal.classList.add("hidden");
+    currentScreenshot = null;
   }
 
   function renderItem(item, tab) {
@@ -334,7 +412,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           item.url,
           40
         )}`;
-        detail = item.error || item.statusText || `${item.duration}ms`;
+        detail = item.traceId
+          ? `Trace: ${truncate(item.traceId, 20)} | ${item.duration || 0}ms`
+          : item.error || item.statusText || `${item.duration}ms`;
         break;
 
       case "console":
@@ -419,6 +499,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // =============================================
+  // SCREENSHOT MODAL HANDLERS
+  // =============================================
+  if (modalClose) {
+    modalClose.addEventListener("click", closeScreenshotModal);
+  }
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", closeScreenshotModal);
+  }
+  if (downloadScreenshot) {
+    downloadScreenshot.addEventListener("click", () => {
+      if (
+        currentScreenshot?.dataUrl &&
+        currentScreenshot.dataUrl !== "[image]"
+      ) {
+        const a = document.createElement("a");
+        a.href = currentScreenshot.dataUrl;
+        a.download = `screenshot-${
+          currentScreenshot.reason || "capture"
+        }-${Date.now()}.png`;
+        a.click();
+        showResult("Screenshot downloaded!");
+      } else {
+        showResult("No image data available", true);
+      }
+    });
+  }
+
+  // =============================================
   // BUTTONS
   // =============================================
   captureBtn.addEventListener("click", async () => {
@@ -441,11 +549,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  refreshBtn.addEventListener("click", async () => {
-    await loadErrors();
-    showResult("Errors refreshed!");
-  });
-
   exportBtn.addEventListener("click", async () => {
     try {
       const response = await chrome.runtime.sendMessage({
@@ -465,34 +568,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (e) {
       showResult("Export failed: " + e.message, true);
-    }
-  });
-
-  ticketBtn.addEventListener("click", async () => {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "createTicket",
-      });
-      if (response?.success) {
-        const blob = new Blob([response.ticket.markdown], {
-          type: "text/markdown",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `bug-report-${Date.now()}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        try {
-          await navigator.clipboard.writeText(response.ticket.markdown);
-          showResult("Ticket generated & copied!");
-        } catch {
-          showResult("Ticket generated!");
-        }
-      }
-    } catch (e) {
-      showResult("Ticket failed: " + e.message, true);
     }
   });
 

@@ -523,6 +523,8 @@ function generateMCPExport() {
         requestBody: e.requestBody?.slice(0, 1000),
         responseBody: e.responseBody?.slice(0, 2000),
         duration: e.duration,
+        traceId: e.traceId,
+        traceIdHeader: e.traceIdHeader,
       })),
       apiRequests: db.apiRequests.slice(-100).map((e) => ({
         timestamp: e.timestamp,
@@ -531,6 +533,7 @@ function generateMCPExport() {
         status: e.status,
         duration: e.duration,
         isError: e.isError,
+        traceId: e.traceId,
       })),
     },
 
@@ -714,6 +717,9 @@ ${recentApiErrors
 - **${e.method || "?"} ${e.url?.slice(0, 100)}**
   - Status: ${e.status} ${e.statusText || ""}
   - Error: ${e.error || e.errorDetails?.message || "N/A"}
+  - Trace ID: ${e.traceId || "N/A"}${
+      e.traceIdHeader ? ` (${e.traceIdHeader})` : ""
+    }
   - Time: ${e.timestamp}
 `
   )

@@ -27,8 +27,107 @@
     page: [],
     console: [],
     api: [],
-    apiRequests: [],
+    apiRequests: [], // Sliding window: only keep APIs around errors
   };
+
+  // API sliding window buffer - keeps last N requests until an error occurs
+  const API_BUFFER_SIZE = 4; // Keep 3 before + current
+  const API_AFTER_ERROR_COUNT = 3; // Keep 3 after error
+  let apiBuffer = []; // Temporary buffer before error
+  let pendingAfterError = 0; // Count of requests to capture after error
+  let lastErrorTimestamp = null;
+
+  // Common trace ID headers to look for
+  const TRACE_ID_HEADERS = [
+    "x-trace-id",
+    "x-request-id",
+    "x-correlation-id",
+    "traceparent",
+    "x-amzn-trace-id",
+    "x-b3-traceid",
+    "request-id",
+    "x-cloud-trace-context",
+  ];
+
+  // =============================================
+  // ERROR FILTERING - Ignore noise, capture real errors
+  // =============================================
+  const IGNORED_ERROR_PATTERNS = [
+    /^Unknown error$/i,
+    /^undefined$/i,
+    /^null$/i,
+    /^Script error\.?$/i,
+    /^ResizeObserver loop/i,
+    /^ResizeObserver loop completed with undelivered notifications/i,
+    /^\[object Object\]$/,
+    /^\[object Event\]$/,
+    /^Object$/,
+    /^Error$/,
+  ];
+
+  const IGNORED_CONSOLE_PATTERNS = [
+    /^\[HMR\]/i, // Hot Module Replacement noise
+    /^%c/, // Styled console logs (usually debug)
+    /^\[webpack/i,
+    /^Download the React DevTools/i,
+    /^Warning: ReactDOM.render is no longer supported/i,
+    /^Warning: componentWillMount has been renamed/i,
+    /^Warning: componentWillReceiveProps has been renamed/i,
+    /^Warning: componentWillUpdate has been renamed/i,
+  ];
+
+  function shouldIgnoreError(message) {
+    if (!message || typeof message !== "string") return true;
+
+    const trimmed = message.trim();
+    if (trimmed.length === 0) return true;
+    if (trimmed.length < 3) return true; // Too short to be useful
+
+    for (const pattern of IGNORED_ERROR_PATTERNS) {
+      if (pattern.test(trimmed)) return true;
+    }
+
+    return false;
+  }
+
+  function shouldIgnoreConsoleError(message) {
+    if (shouldIgnoreError(message)) return true;
+
+    for (const pattern of IGNORED_CONSOLE_PATTERNS) {
+      if (pattern.test(message)) return true;
+    }
+
+    return false;
+  }
+
+  function isRealError(errorType, message) {
+    // Must have a meaningful error type
+    const realErrorTypes = [
+      "Error",
+      "TypeError",
+      "ReferenceError",
+      "SyntaxError",
+      "RangeError",
+      "URIError",
+      "EvalError",
+      "AggregateError",
+      "InternalError",
+      "DOMException",
+      "NetworkError",
+      "AbortError",
+      "ChunkLoadError",
+    ];
+
+    const hasRealType = realErrorTypes.some(
+      (t) => errorType?.includes(t) || message?.includes(t)
+    );
+
+    // Must have meaningful message content
+    const hasRealMessage =
+      message && message.length > 5 && !shouldIgnoreError(message);
+
+    return hasRealType || hasRealMessage;
+  }
 
   _log("🔵 L2 Agent: Main world injection started", { sessionId: SESSION_ID });
 
@@ -294,11 +393,24 @@
   console.error = function (...args) {
     const errorInfos = args.map((arg) => extractErrorInfo(arg));
     const primaryError = errorInfos.find((e) => e.stack) || errorInfos[0] || {};
+    const message = formatArgs(args);
+
+    // Filter out noise - only capture real errors
+    if (shouldIgnoreConsoleError(message)) {
+      _error.apply(console, args);
+      return;
+    }
+
+    // Check if this is a real error worth logging
+    if (!isRealError(primaryError.type, message)) {
+      _error.apply(console, args);
+      return;
+    }
 
     const entry = {
       type: "console.error",
       errorType: primaryError.type || "console.error",
-      message: formatArgs(args),
+      message,
       stack: primaryError.stack || getCurrentStack(),
       componentStack: primaryError.componentStack,
       timestamp: new Date().toISOString(),
@@ -370,7 +482,7 @@
   window.addEventListener(
     "error",
     function (e) {
-      let errorInfo = { type: "Error", message: "Unknown error", stack: "" };
+      let errorInfo = { type: "Error", message: "", stack: "" };
 
       // Extract from error object
       if (e.error) {
@@ -385,10 +497,27 @@
         };
       }
 
+      const message = errorInfo.message || e.message || "";
+
+      // Filter out noise - only capture real errors
+      if (shouldIgnoreError(message)) {
+        return;
+      }
+
+      // Must have some useful info (filename, line number, or stack)
+      const hasUsefulInfo =
+        (e.filename && e.filename.length > 0) ||
+        (e.lineno && e.lineno > 0) ||
+        (errorInfo.stack && errorInfo.stack.length > 0);
+
+      if (!hasUsefulInfo && !isRealError(errorInfo.type, message)) {
+        return;
+      }
+
       const entry = {
         type: "uncaught_error",
         errorType: errorInfo.type || "Error",
-        message: errorInfo.message || e.message || "Unknown error",
+        message: message || "Uncaught error",
         filename: e.filename || errorInfo.fileName || "",
         lineno: e.lineno || errorInfo.lineNumber || 0,
         colno: e.colno || errorInfo.columnNumber || 0,
@@ -422,11 +551,21 @@
   // =============================================
   window.addEventListener("unhandledrejection", function (e) {
     const errorInfo = extractErrorInfo(e.reason);
+    const message = errorInfo.message || "";
+
+    // Filter out noise
+    if (shouldIgnoreError(message)) {
+      return;
+    }
+
+    if (!isRealError(errorInfo.type, message)) {
+      return;
+    }
 
     const entry = {
       type: "unhandled_rejection",
       errorType: errorInfo.type || "PromiseRejection",
-      message: errorInfo.message || "Promise rejected",
+      message: message || "Promise rejected",
       stack: errorInfo.stack || "",
       componentStack: errorInfo.componentStack,
       reason:
@@ -447,6 +586,81 @@
 
     _log("🔴 L2 captured promise rejection:", entry.message);
   });
+
+  // =============================================
+  // API STORAGE HELPER - Sliding window around errors
+  // =============================================
+  function extractTraceId(getHeader) {
+    for (const header of TRACE_ID_HEADERS) {
+      try {
+        const value = getHeader(header);
+        if (value) return { header, value };
+      } catch {}
+    }
+    return null;
+  }
+
+  function storeApiRequest(entry) {
+    if (entry.isError) {
+      // Error occurred - flush buffer to storage
+      // Add all buffered requests (these are the "before" requests)
+      apiBuffer.forEach((bufferedEntry) => {
+        localErrors.apiRequests.push(bufferedEntry);
+        sendToContentScript("api_request", bufferedEntry);
+      });
+      apiBuffer = [];
+
+      // Add the error itself
+      localErrors.apiRequests.push(entry);
+      sendToContentScript("api_request", entry);
+
+      // Store as API error
+      localErrors.api.push(entry);
+      if (localErrors.api.length > 100) localErrors.api.shift();
+      sendToContentScript("api_error", entry);
+
+      // Set up to capture N more requests after error
+      pendingAfterError = API_AFTER_ERROR_COUNT;
+      lastErrorTimestamp = Date.now();
+
+      _log(
+        `🔴 L2 API Error: ${entry.method} ${entry.status} ${entry.url.slice(
+          0,
+          60
+        )}`
+      );
+    } else if (pendingAfterError > 0) {
+      // We're in "after error" mode - store this request
+      localErrors.apiRequests.push(entry);
+      sendToContentScript("api_request", entry);
+      pendingAfterError--;
+
+      _log(
+        `🌐 L2 API (after error ${
+          API_AFTER_ERROR_COUNT - pendingAfterError
+        }/${API_AFTER_ERROR_COUNT}): ${entry.method} ${
+          entry.status
+        } ${entry.url.slice(0, 60)}`
+      );
+    } else {
+      // Normal mode - add to buffer
+      apiBuffer.push(entry);
+
+      // Keep buffer at max size (sliding window)
+      if (apiBuffer.length > API_BUFFER_SIZE) {
+        apiBuffer.shift();
+      }
+
+      _log(
+        `🌐 L2 API (buffered ${apiBuffer.length}/${API_BUFFER_SIZE}): ${
+          entry.method
+        } ${entry.status} ${entry.url.slice(0, 60)}`
+      );
+    }
+
+    // Trim storage
+    if (localErrors.apiRequests.length > 100) localErrors.apiRequests.shift();
+  }
 
   // =============================================
   // 6. XHR INTERCEPTION
@@ -475,9 +689,25 @@
 
       xhr.addEventListener("loadend", function () {
         let responseBody = "";
+        let responseHeaders = {};
+
         try {
           responseBody = xhr.responseText?.slice(0, 5000) || "";
         } catch {}
+
+        // Extract all response headers
+        try {
+          const headerStr = xhr.getAllResponseHeaders();
+          headerStr.split("\r\n").forEach((line) => {
+            const [key, ...valueParts] = line.split(": ");
+            if (key) responseHeaders[key.toLowerCase()] = valueParts.join(": ");
+          });
+        } catch {}
+
+        // Extract trace ID
+        const traceInfo = extractTraceId(
+          (h) => responseHeaders[h.toLowerCase()]
+        );
 
         const entry = {
           type: "xhr",
@@ -488,31 +718,21 @@
           duration: Date.now() - req.start,
           requestBody: req.body,
           responseBody,
+          traceId: traceInfo?.value || null,
+          traceIdHeader: traceInfo?.header || null,
           isError: xhr.status === 0 || xhr.status >= 400,
           timestamp: new Date().toISOString(),
         };
-
-        // Store locally
-        localErrors.apiRequests.push(entry);
-        if (localErrors.apiRequests.length > 200)
-          localErrors.apiRequests.shift();
-
-        sendToContentScript("api_request", entry);
 
         if (entry.isError) {
           let errorDetails = null;
           try {
             if (responseBody) errorDetails = JSON.parse(responseBody);
           } catch {}
-
-          const errorEntry = { ...entry, errorDetails };
-          localErrors.api.push(errorEntry);
-          if (localErrors.api.length > 100) localErrors.api.shift();
-
-          sendToContentScript("api_error", errorEntry);
+          entry.errorDetails = errorDetails;
         }
 
-        _log(`🌐 L2 XHR: ${req.method} ${xhr.status} ${req.url.slice(0, 60)}`);
+        storeApiRequest(entry);
       });
 
       xhr.addEventListener("error", function () {
@@ -527,8 +747,7 @@
           timestamp: new Date().toISOString(),
         };
 
-        localErrors.api.push(entry);
-        sendToContentScript("api_error", entry);
+        storeApiRequest(entry);
       });
 
       xhr.addEventListener("timeout", function () {
@@ -543,8 +762,7 @@
           timestamp: new Date().toISOString(),
         };
 
-        localErrors.api.push(entry);
-        sendToContentScript("api_error", entry);
+        storeApiRequest(entry);
       });
 
       return _send(body);
@@ -589,6 +807,9 @@
         responseBody = (await clone.text()).slice(0, 5000);
       } catch {}
 
+      // Extract trace ID from response headers
+      const traceInfo = extractTraceId((h) => response.headers.get(h));
+
       const entry = {
         type: "fetch",
         method,
@@ -598,30 +819,21 @@
         duration,
         requestBody,
         responseBody,
+        traceId: traceInfo?.value || null,
+        traceIdHeader: traceInfo?.header || null,
         isError: !response.ok,
         timestamp: new Date().toISOString(),
       };
-
-      // Store locally
-      localErrors.apiRequests.push(entry);
-      if (localErrors.apiRequests.length > 200) localErrors.apiRequests.shift();
-
-      sendToContentScript("api_request", entry);
 
       if (!response.ok) {
         let errorDetails = null;
         try {
           if (responseBody) errorDetails = JSON.parse(responseBody);
         } catch {}
-
-        const errorEntry = { ...entry, errorDetails };
-        localErrors.api.push(errorEntry);
-        if (localErrors.api.length > 100) localErrors.api.shift();
-
-        sendToContentScript("api_error", errorEntry);
+        entry.errorDetails = errorDetails;
       }
 
-      _log(`🌐 L2 Fetch: ${method} ${response.status} ${url.slice(0, 60)}`);
+      storeApiRequest(entry);
       return response;
     } catch (err) {
       const entry = {
@@ -637,9 +849,7 @@
         timestamp: new Date().toISOString(),
       };
 
-      localErrors.api.push(entry);
-      sendToContentScript("api_error", entry);
-      _log(`🔴 L2 Fetch Error: ${method} ${url.slice(0, 60)} - ${err.message}`);
+      storeApiRequest(entry);
       throw err;
     }
   };
