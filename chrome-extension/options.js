@@ -2,6 +2,9 @@
 document.addEventListener("DOMContentLoaded", () => {
   // DOM Elements
   const form = document.getElementById("options-form");
+  const enabledCheckbox = document.getElementById("enabled");
+  const backendUrlInput = document.getElementById("backend-url");
+  const customSettingInput = document.getElementById("custom-setting");
   const saveMessage = document.getElementById("save-message");
   const clearDataBtn = document.getElementById("clear-data-btn");
 
@@ -25,6 +28,13 @@ document.addEventListener("DOMContentLoaded", () => {
       trackConsole.checked = s.trackConsole !== false;
       crashNotification.checked = s.crashNotification !== false;
       if (s.maxErrors) maxErrors.value = s.maxErrors.toString();
+      enabledCheckbox.checked = result.settings.enabled !== false;
+      if (result.settings.backendUrl) {
+        backendUrlInput.value = result.settings.backendUrl;
+      }
+      if (result.settings.customSetting) {
+        customSettingInput.value = result.settings.customSetting;
+      }
     }
   });
 
@@ -42,6 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
       trackConsole: trackConsole.checked,
       crashNotification: crashNotification.checked,
       maxErrors: parseInt(maxErrors.value, 10),
+      enabled: enabledCheckbox.checked,
+      backendUrl: backendUrlInput.value || "http://localhost:3000",
+      customSetting: customSettingInput.value,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -55,7 +68,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Clear all data
   clearDataBtn.addEventListener("click", async () => {
-    if (confirm("Are you sure you want to clear all stored error data? This cannot be undone.")) {
+    if (
+      confirm(
+        "Are you sure you want to clear all stored error data? This cannot be undone."
+      )
+    ) {
       try {
         await chrome.runtime.sendMessage({ action: "clearAllErrors" });
         alert("All stored data has been cleared.");

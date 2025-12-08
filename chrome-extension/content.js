@@ -193,6 +193,26 @@
         respond({ success: true });
         break;
 
+      case "extractPageContent":
+        // Extract page content for analysis
+        const pageData = {
+          url: window.location.href,
+          title: document.title,
+          content: document.body.innerText || document.body.textContent || "",
+          html: document.documentElement.outerHTML.substring(0, 50000), // Limit HTML size
+          metadata: {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            language: navigator.language,
+          },
+        };
+
+        respond({
+          success: true,
+          data: pageData,
+        });
+        break;
+
       default:
         respond({ success: false });
     }
