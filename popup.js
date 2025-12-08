@@ -571,4 +571,3 @@ document.addEventListener("DOMContentLoaded", async () => {
   // =============================================
   await checkConsent();
 });
-
