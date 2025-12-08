@@ -1,76 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>L2 Agent - Options</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    .options-container {
-      max-width: 600px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-    .form-group {
-      margin-bottom: 20px;
-    }
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      color: #333;
-    }
-    input[type="text"],
-    input[type="number"],
-    textarea {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    .save-btn {
-      margin-top: 20px;
-    }
-    .success-message {
-      display: none;
-      padding: 10px;
-      background: #e8f5e9;
-      color: #2e7d32;
-      border-radius: 4px;
-      margin-top: 10px;
-    }
-    .success-message.show {
-      display: block;
-    }
-  </style>
-</head>
-<body>
-  <div class="options-container">
-    <header>
-      <h1>L2 Agent Settings</h1>
-    </header>
-    <main>
-      <form id="options-form">
-        <div class="form-group">
-          <label for="enabled">Enable Extension</label>
-          <input type="checkbox" id="enabled" checked>
-        </div>
-        <div class="form-group">
-          <label for="backend-url">Backend URL</label>
-          <input type="text" id="backend-url" placeholder="http://localhost:3000">
-          <small style="color: #666; font-size: 12px;">URL of the backend server</small>
-        </div>
-        <div class="form-group">
-          <label for="custom-setting">Custom Setting</label>
-          <input type="text" id="custom-setting" placeholder="Enter value">
-        </div>
-        <button type="submit" class="btn btn-primary save-btn">Save Settings</button>
-        <div id="save-message" class="success-message">Settings saved!</div>
-      </form>
-    </main>
-  </div>
-  <script src="options.js"></script>
-</body>
-</html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>L2 Agent - Settings</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="options-container">
+      <header>
+        <h1>🔍 L2 Agent Settings</h1>
+        <p class="subtitle">Configure error tracking preferences</p>
+      </header>
 
+      <main>
+        <form id="options-form">
+          <!-- General Settings -->
+          <div class="option-group">
+            <h3>General</h3>
+            <div class="option-row">
+              <span class="option-label">Enable Error Tracking</span>
+              <label class="toggle">
+                <input type="checkbox" id="tracking-enabled" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-label">Track Only on Freshworks Domains</span>
+              <label class="toggle">
+                <input type="checkbox" id="freshworks-only" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Capture Settings -->
+          <div class="option-group">
+            <h3>Capture Settings</h3>
+            <div class="option-row">
+              <span class="option-label">Auto-capture Screenshot on Crash</span>
+              <label class="toggle">
+                <input type="checkbox" id="auto-screenshot" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-label">Track API Errors</span>
+              <label class="toggle">
+                <input type="checkbox" id="track-api" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-label">Track Console Errors</span>
+              <label class="toggle">
+                <input type="checkbox" id="track-console" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <div class="option-group">
+            <h3>Notifications</h3>
+            <div class="option-row">
+              <span class="option-label">Show Notification on Crash</span>
+              <label class="toggle">
+                <input type="checkbox" id="crash-notification" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="backend-url">Backend URL</label>
+            <input
+              type="text"
+              id="backend-url"
+              placeholder="http://localhost:3000"
+            />
+            <small style="color: #666; font-size: 12px"
+              >URL of the backend server</small
+            >
+          </div>
+
+          <!-- Data Management -->
+          <div class="option-group">
+            <h3>Data Management</h3>
+            <div class="option-row">
+              <span class="option-label">Maximum Stored Errors</span>
+              <select id="max-errors" class="select-input">
+                <option value="100">100 errors</option>
+                <option value="250">250 errors</option>
+                <option value="500" selected>500 errors</option>
+                <option value="1000">1000 errors</option>
+              </select>
+            </div>
+            <div class="option-row">
+              <button type="button" id="clear-data-btn" class="btn btn-danger">
+                🗑️ Clear All Stored Data
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary save-btn">
+            💾 Save Settings
+          </button>
+          <div id="save-message" class="success-message">
+            Settings saved successfully!
+          </div>
+        </form>
+      </main>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

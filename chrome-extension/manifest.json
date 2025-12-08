@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "L2 Agent",
-  "version": "1.0.0",
-  "description": "A Chrome extension foundation",
-  "permissions": ["activeTab", "storage"],
+  "name": "L2 Agent - Error Tracker",
+  "version": "1.1.1",
+  "description": "Track page crashes, API errors, and console errors on Freshworks pages. Capture screenshots and generate bug reports.",
+  "permissions": ["activeTab", "storage", "scripting", "tabs", "notifications"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "action": {
     "default_popup": "popup.html",
@@ -11,16 +11,34 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "L2 Agent - Error Tracker"
   },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "https://*.freshworks.com/*",
+        "https://*.freshdesk.com/*",
+        "https://*.freshservice.com/*",
+        "https://*.freshsales.io/*",
+        "https://*.myfreshworks.com/*",
+        "https://*.freshworksapi.io/*",
+        "https://*.freshworkscorp.com/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://*/*", "http://*/*"]
     }
   ],
   "icons": {

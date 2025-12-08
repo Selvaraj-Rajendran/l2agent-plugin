@@ -3,24 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>L2 Agent</title>
+  <title>L2 Agent - Error Tracker</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <header>
+    <!-- Consent Screen -->
+    <div id="consent-screen" class="consent-screen">
+      <div class="consent-icon">🔍</div>
       <h1>L2 Agent</h1>
-    </header>
-    <main>
-      <div class="status" id="status">
-        <span class="status-indicator"></span>
-        <span id="status-text">Ready</span>
+      <p class="consent-subtitle">Error & Crash Tracker</p>
+      
+      <div class="consent-info">
+        <h3>What we collect:</h3>
+        <ul>
+          <li>🔗 API errors and failed requests</li>
+          <li>⚠️ Console errors and warnings</li>
+          <li>💥 Page crash detection</li>
+          <li>📸 Screenshots (manual & on crash)</li>
+        </ul>
+        <p class="consent-note">
+          All data is stored locally in your browser. Nothing is sent to external servers.
+        </p>
       </div>
-      <button id="action-btn" class="btn btn-primary">Click Me</button>
-      <div id="result" class="result"></div>
-    </main>
+
+      <button id="enable-btn" class="btn btn-enable">
+        ✓ Enable Tracking
+      </button>
+      
+      <p class="consent-footer">
+        You can disable tracking anytime from settings.
+      </p>
+    </div>
+
+    <!-- Main Dashboard (hidden until consent) -->
+    <div id="dashboard" class="dashboard hidden">
+      <header>
+        <div class="header-row">
+          <h1>🔍 L2 Agent</h1>
+          <div class="header-controls">
+            <button id="toggle-tracking" class="tracking-toggle active" title="Tracking Enabled">
+              <span class="toggle-dot"></span>
+            </button>
+            <span class="version">v1.0</span>
+          </div>
+        </div>
+        <p class="subtitle">Error & Crash Tracker</p>
+      </header>
+
+      <main>
+        <!-- Status Section -->
+        <div class="status" id="status">
+          <span class="status-indicator" id="status-dot"></span>
+          <span id="status-text">Initializing...</span>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card crash" id="crash-card">
+            <span class="stat-icon">💥</span>
+            <span class="stat-value" id="crash-count">0</span>
+            <span class="stat-label">Crashes</span>
+          </div>
+          <div class="stat-card api" id="api-card">
+            <span class="stat-icon">🔗</span>
+            <span class="stat-value" id="api-count">0</span>
+            <span class="stat-label">API Errors</span>
+          </div>
+          <div class="stat-card console" id="console-card">
+            <span class="stat-icon">⚠️</span>
+            <span class="stat-value" id="console-count">0</span>
+            <span class="stat-label">Console</span>
+          </div>
+          <div class="stat-card screenshot" id="screenshot-card">
+            <span class="stat-icon">📸</span>
+            <span class="stat-value" id="screenshot-count">0</span>
+            <span class="stat-label">Screenshots</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group single">
+          <button id="capture-btn" class="btn btn-secondary">
+            📷 Capture Screenshot
+          </button>
+        </div>
+
+        <!-- Error List Toggle -->
+        <div class="tabs">
+          <button class="tab active" data-tab="crashes">Crashes</button>
+          <button class="tab" data-tab="api">API Errors</button>
+          <button class="tab" data-tab="console">Console</button>
+          <button class="tab" data-tab="screenshots">Screenshots</button>
+        </div>
+
+        <!-- Error List -->
+        <div class="error-list" id="error-list">
+          <div class="empty-state" id="empty-state">
+            <span class="empty-icon">✓</span>
+            <p>No errors detected</p>
+          </div>
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="export-section two-col">
+          <button id="export-btn" class="btn btn-primary">
+            📄 Export Report
+          </button>
+          <button id="clear-btn" class="btn btn-danger">
+            🗑️ Clear All
+          </button>
+        </div>
+
+        <!-- Result Message -->
+        <div id="result" class="result"></div>
+      </main>
+    </div>
+
+    <!-- Screenshot Modal -->
+    <div id="screenshot-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <span id="modal-title">Screenshot</span>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <img id="screenshot-img" src="" alt="Screenshot">
+          <div class="screenshot-info">
+            <p><strong>Reason:</strong> <span id="screenshot-reason"></span></p>
+            <p><strong>Time:</strong> <span id="screenshot-time"></span></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="download-screenshot" class="btn btn-primary">📥 Download</button>
+        </div>
+      </div>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>
 </html>
-
