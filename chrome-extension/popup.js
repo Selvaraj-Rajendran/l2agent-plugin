@@ -1,61 +1,3 @@
-// Popup script - handles UI interactions
-document.addEventListener('DOMContentLoaded', () => {
-  const actionBtn = document.getElementById('action-btn');
-  const statusText = document.getElementById('status-text');
-  const resultDiv = document.getElementById('result');
-
-  // Get current tab
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const currentTab = tabs[0];
-    if (currentTab) {
-      statusText.textContent = `Active on: ${new URL(currentTab.url).hostname}`;
-    }
-  });
-
-  // Handle button click
-  actionBtn.addEventListener('click', async () => {
-    try {
-      // Get current tab and extract page content
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
-      // Extract page content
-      const pageData = await chrome.tabs.sendMessage(tab.id, {
-        action: 'extractPageContent'
-      });
-
-      if (!pageData.success) {
-        throw new Error('Failed to extract page content');
-      }
-
-      // Send to backend for analysis
-      const backendResponse = await chrome.runtime.sendMessage({
-        action: 'analyzePage',
-        url: pageData.data.url,
-        title: pageData.data.title,
-        content: pageData.data.content,
-        metadata: pageData.data.metadata
-      });
-
-      if (backendResponse.success) {
-        resultDiv.textContent = 'Page analyzed successfully!';
-        resultDiv.classList.add('show');
-        console.log('Backend response:', backendResponse.result);
-      } else {
-        throw new Error(backendResponse.error || 'Backend request failed');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      resultDiv.textContent = 'Error: ' + error.message;
-      resultDiv.classList.add('show', 'error');
-    }
-  });
-
-  // Load saved settings
-  chrome.storage.sync.get(['settings'], (result) => {
-    if (result.settings) {
-      console.log('Loaded settings:', result.settings);
-    }
-  });
 // L2 Agent - Popup Dashboard
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -104,15 +46,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         "userConsent",
         "trackingEnabled",
       ]);
+      
+      console.log("L2 Popup: Checking consent", result);
+
+      // Show dashboard if user has given consent (even if tracking is disabled)
+      // This allows them to see the UI and re-enable easily
       if (result.userConsent === true) {
         isTracking = result.trackingEnabled !== false;
+        console.log("L2 Popup: Showing dashboard, tracking:", isTracking);
         showDashboard();
         await loadErrors();
       } else {
+        console.log("L2 Popup: No consent, showing enable screen");
+        isTracking = false;
         showConsent();
       }
     } catch (e) {
       console.error("Consent check error:", e);
+      isTracking = false;
       showConsent();
     }
   }
@@ -131,10 +82,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   function updateToggle() {
     if (isTracking) {
       toggleTracking.classList.add("active");
-      toggleTracking.title = "Tracking ON - Click to pause";
+      toggleTracking.title = "Tracking Active - Click to pause";
     } else {
       toggleTracking.classList.remove("active");
-      toggleTracking.title = "Tracking OFF - Click to enable";
+      toggleTracking.title = "Tracking Paused - Click to resume";
     }
   }
 
@@ -142,66 +93,119 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ENABLE TRACKING
   // =============================================
   enableBtn.addEventListener("click", async () => {
-    await chrome.storage.local.set({
-      userConsent: true,
-      trackingEnabled: true,
-    });
-    isTracking = true;
+    // Disable button and show loading state
+    enableBtn.disabled = true;
+    const originalText = enableBtn.textContent;
+    enableBtn.textContent = "⏳ Enabling...";
+    
+    console.log("L2 Popup: Enable button clicked");
 
-    await chrome.runtime.sendMessage({
-      action: "setTrackingEnabled",
-      enabled: true,
-    });
+    try {
+      // 1. Save consent and enable tracking state
+      await chrome.storage.local.set({
+        userConsent: true,
+        trackingEnabled: true,
+      });
+      isTracking = true;
+      console.log("L2 Popup: State saved, tracking enabled");
 
-    // Inject and enable on current tab
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    if (tab && isValidUrl(tab.url)) {
+      // 2. Notify background script to update its state
       try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ["content.js"],
-        });
-        await chrome.tabs.sendMessage(tab.id, {
-          action: "enableTracking",
+        await chrome.runtime.sendMessage({
+          action: "setTrackingEnabled",
           enabled: true,
         });
+        console.log("L2 Popup: Background notified");
       } catch (e) {
-        console.log("Inject error:", e);
+        console.error("L2 Popup: Failed to notify background", e);
       }
-    }
 
-    showDashboard();
-    await loadErrors();
-    showResult("Tracking enabled! Errors will be captured.");
+      // 3. Try to notify content script on current tab (if it exists)
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      
+      console.log("L2 Popup: Current tab", tab?.url);
+
+      if (tab && isValidUrl(tab.url)) {
+        try {
+          // Try to send message to content script (it might already be running)
+          await chrome.tabs.sendMessage(tab.id, {
+            action: "enableTracking",
+            enabled: true,
+          });
+          console.log("L2 Popup: Content script notified");
+        } catch (e) {
+          // Content script might not be injected yet
+          console.log("L2 Popup: Content script not responding:", e.message);
+        }
+      }
+
+      // 4. Show dashboard
+      console.log("L2 Popup: Showing dashboard");
+      showDashboard();
+      await loadErrors();
+      
+      // 5. Show success message
+      showResult("✓ Tracking enabled! Monitoring for errors.");
+      
+    } catch (error) {
+      console.error("L2 Popup: Enable tracking error:", error);
+      showResult("Error enabling tracking: " + error.message, true);
+
+      // Re-enable button on error
+      enableBtn.disabled = false;
+      enableBtn.textContent = originalText;
+    }
   });
 
   // Toggle tracking - when disabled, show consent screen
   toggleTracking.addEventListener("click", async () => {
-    isTracking = !isTracking;
+    const newState = !isTracking;
+    console.log("L2 Popup: Toggle clicked, new state:", newState);
 
-    if (!isTracking) {
-      // User is disabling tracking - reset consent and show start screen
+    if (!newState) {
+      // User is disabling tracking - keep consent but disable tracking
+      // This keeps them in the dashboard with a "disabled" state
       await chrome.storage.local.set({
-        userConsent: false,
+        userConsent: true,
         trackingEnabled: false,
       });
-      await chrome.runtime.sendMessage({
-        action: "setTrackingEnabled",
-        enabled: false,
-      });
-      showConsent();
-      showResult("Tracking disabled");
-    } else {
-      await chrome.storage.local.set({ trackingEnabled: true });
-      await chrome.runtime.sendMessage({
-        action: "setTrackingEnabled",
-        enabled: true,
-      });
+      isTracking = false;
+      
+      try {
+        await chrome.runtime.sendMessage({
+          action: "setTrackingEnabled",
+          enabled: false,
+        });
+      } catch (e) {
+        console.error("L2 Popup: Failed to notify background", e);
+      }
+      
+      console.log("L2 Popup: Tracking disabled, staying in dashboard");
       updateToggle();
-      showResult("Tracking enabled");
+      showResult("⏸ Tracking paused. Click the toggle to resume.");
+    } else {
+      // User is re-enabling tracking from toggle - restore tracking
+      await chrome.storage.local.set({
+        userConsent: true,
+        trackingEnabled: true,
+      });
+      isTracking = true;
+      
+      try {
+        await chrome.runtime.sendMessage({
+          action: "setTrackingEnabled",
+          enabled: true,
+        });
+      } catch (e) {
+        console.error("L2 Popup: Failed to notify background", e);
+      }
+      
+      updateToggle();
+      await loadErrors();
+      showResult("▶ Tracking resumed!");
     }
   });
 

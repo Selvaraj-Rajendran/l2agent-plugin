@@ -31,6 +31,15 @@ chrome.runtime.onInstalled.addListener((details) => {
   loadFromStorage();
 });
 
+// Load state when service worker starts (including after browser restart)
+chrome.runtime.onStartup.addListener(() => {
+  console.log("L2 Agent: Browser started, loading state...");
+  loadFromStorage();
+});
+
+// Also load on service worker activation
+loadFromStorage();
+
 async function loadFromStorage() {
   try {
     const result = await chrome.storage.local.get([
@@ -121,6 +130,12 @@ chrome.runtime.onMessage.addListener((req, sender, respond) => {
     // Tracking control
     case "setTrackingEnabled":
       isTrackingEnabled = req.enabled;
+      console.log("L2 BG: Tracking state changed to:", isTrackingEnabled);
+      // Save the state immediately
+      chrome.storage.local.set({ trackingEnabled: req.enabled }).catch(e => {
+        console.error("L2 BG: Failed to save tracking state", e);
+      });
+      updateBadge();
       respond({ success: true });
       break;
 
@@ -208,6 +223,12 @@ chrome.runtime.onMessage.addListener((req, sender, respond) => {
 // ERROR HANDLING - Enhanced
 // =============================================
 function handleError(type, data, tabId, tabUrl) {
+  // Check if tracking is enabled
+  if (!isTrackingEnabled) {
+    console.log("L2 Agent: Tracking disabled, ignoring error:", type);
+    return;
+  }
+
   const entry = {
     id: genId(),
     tabId,
