@@ -132,7 +132,7 @@ chrome.runtime.onMessage.addListener((req, sender, respond) => {
       isTrackingEnabled = req.enabled;
       console.log("L2 BG: Tracking state changed to:", isTrackingEnabled);
       // Save the state immediately
-      chrome.storage.local.set({ trackingEnabled: req.enabled }).catch(e => {
+      chrome.storage.local.set({ trackingEnabled: req.enabled }).catch((e) => {
         console.error("L2 BG: Failed to save tracking state", e);
       });
       updateBadge();

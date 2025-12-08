@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "userConsent",
         "trackingEnabled",
       ]);
-      
+
       console.log("L2 Popup: Checking consent", result);
 
       // Show dashboard if user has given consent (even if tracking is disabled)
@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     enableBtn.disabled = true;
     const originalText = enableBtn.textContent;
     enableBtn.textContent = "⏳ Enabling...";
-    
+
     console.log("L2 Popup: Enable button clicked");
 
     try {
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         active: true,
         currentWindow: true,
       });
-      
+
       console.log("L2 Popup: Current tab", tab?.url);
 
       if (tab && isValidUrl(tab.url)) {
@@ -146,10 +146,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log("L2 Popup: Showing dashboard");
       showDashboard();
       await loadErrors();
-      
+
       // 5. Show success message
       showResult("✓ Tracking enabled! Monitoring for errors.");
-      
     } catch (error) {
       console.error("L2 Popup: Enable tracking error:", error);
       showResult("Error enabling tracking: " + error.message, true);
@@ -173,7 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         trackingEnabled: false,
       });
       isTracking = false;
-      
+
       try {
         await chrome.runtime.sendMessage({
           action: "setTrackingEnabled",
@@ -182,7 +181,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       } catch (e) {
         console.error("L2 Popup: Failed to notify background", e);
       }
-      
+
       console.log("L2 Popup: Tracking disabled, staying in dashboard");
       updateToggle();
       showResult("⏸ Tracking paused. Click the toggle to resume.");
@@ -193,7 +192,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         trackingEnabled: true,
       });
       isTracking = true;
-      
+
       try {
         await chrome.runtime.sendMessage({
           action: "setTrackingEnabled",
@@ -202,7 +201,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       } catch (e) {
         console.error("L2 Popup: Failed to notify background", e);
       }
-      
+
       updateToggle();
       await loadErrors();
       showResult("▶ Tracking resumed!");
