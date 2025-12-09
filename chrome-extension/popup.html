@@ -105,21 +105,6 @@
           </div>
         </div>
 
-        <!-- AI Analysis Section -->
-        <div class="ai-section">
-          <div class="ai-prompt-container">
-            <textarea 
-              id="custom-prompt" 
-              class="custom-prompt-input" 
-              placeholder="Ask a question about the errors (optional)... e.g., 'Why is my API failing?' or 'What caused the TypeError?'"
-              rows="2"
-            ></textarea>
-          </div>
-          <button id="analyze-btn" class="btn btn-ai">
-            🤖 Get AI Analysis
-          </button>
-        </div>
-
         <!-- Export Buttons -->
         <div class="export-section two-col">
           <button id="export-btn" class="btn btn-primary">
@@ -152,37 +137,6 @@
         </div>
         <div class="modal-footer">
           <button id="download-screenshot" class="btn btn-primary">📥 Download</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- AI Analysis Modal -->
-    <div id="analysis-modal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content analysis-modal-content">
-        <div class="modal-header">
-          <span>🤖 AI Error Analysis</span>
-          <button class="modal-close" id="analysis-modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div id="analysis-loading" class="analysis-loading">
-            <div class="loading-spinner"></div>
-            <p>Analyzing errors with AI...</p>
-            <p class="loading-subtitle">This may take a few seconds</p>
-          </div>
-          <div id="analysis-result" class="analysis-result hidden">
-            <div class="analysis-summary" id="analysis-summary"></div>
-            <div class="analysis-content" id="analysis-content"></div>
-          </div>
-          <div id="analysis-error" class="analysis-error hidden">
-            <span class="error-icon">⚠️</span>
-            <p id="analysis-error-text"></p>
-            <button id="retry-analysis" class="btn btn-secondary" style="margin-top: 12px;">🔄 Retry</button>
-          </div>
-        </div>
-        <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
-          <button id="copy-analysis" class="btn btn-secondary" style="flex: 1;">📋 Copy Analysis</button>
-          <button id="close-analysis" class="btn btn-primary" style="flex: 1;">✓ Done</button>
         </div>
       </div>
     </div>

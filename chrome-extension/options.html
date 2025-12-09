@@ -71,33 +71,16 @@
               </label>
             </div>
           </div>
-          <!-- AI Analysis Backend -->
-          <div class="option-group">
-            <h3>🤖 AI Analysis</h3>
-            <p class="option-description" style="color: var(--text-secondary); font-size: 12px; margin-bottom: 12px;">
-              Connect to the backend server for LLM-powered error analysis
-            </p>
-            <div class="option-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
-              <span class="option-label">Backend URL</span>
-              <input
-                type="url"
-                id="backend-url"
-                class="text-input"
-                placeholder="http://localhost:3000"
-                value="http://localhost:3000"
-              />
-            </div>
-            <div class="option-row" style="margin-top: 12px;">
-              <span class="option-label">Enable AI Analysis</span>
-              <label class="toggle">
-                <input type="checkbox" id="ai-enabled" checked />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <button type="button" id="test-connection-btn" class="btn btn-secondary" style="margin-top: 12px; width: 100%;">
-              🔗 Test Connection
-            </button>
-            <div id="connection-status" class="connection-status" style="display: none; margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 12px;"></div>
+          <div class="form-group">
+            <label for="backend-url">Backend URL</label>
+            <input
+              type="text"
+              id="backend-url"
+              placeholder="http://localhost:3000"
+            />
+            <small style="color: #666; font-size: 12px"
+              >URL of the backend server</small
+            >
           </div>
 
           <!-- Data Management -->
