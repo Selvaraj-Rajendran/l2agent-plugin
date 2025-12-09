@@ -32,10 +32,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   const screenshotTime = document.getElementById("screenshot-time");
   const downloadScreenshot = document.getElementById("download-screenshot");
 
+  // AI Analysis elements
+  const analyzeBtn = document.getElementById("analyze-btn");
+  const customPromptInput = document.getElementById("custom-prompt");
+  const analysisModal = document.getElementById("analysis-modal");
+  const analysisModalClose = document.getElementById("analysis-modal-close");
+  const analysisModalBackdrop = analysisModal?.querySelector(".modal-backdrop");
+  const analysisLoading = document.getElementById("analysis-loading");
+  const analysisResult = document.getElementById("analysis-result");
+  const analysisSummary = document.getElementById("analysis-summary");
+  const analysisContent = document.getElementById("analysis-content");
+  const analysisError = document.getElementById("analysis-error");
+  const analysisErrorText = document.getElementById("analysis-error-text");
+  const retryAnalysis = document.getElementById("retry-analysis");
+  const copyAnalysis = document.getElementById("copy-analysis");
+  const closeAnalysis = document.getElementById("close-analysis");
+
   let currentTab = "crashes";
   let data = null;
   let isTracking = false;
   let currentScreenshot = null;
+  let lastAnalysisResult = null;
 
   // =============================================
   // CONSENT CHECK
@@ -583,6 +600,218 @@ document.addEventListener("DOMContentLoaded", async () => {
         showResult("Screenshot downloaded!");
       } else {
         showResult("No image data available", true);
+      }
+    });
+  }
+
+  // =============================================
+  // AI ANALYSIS
+  // =============================================
+  async function getBackendUrl() {
+    try {
+      const result = await chrome.storage.local.get(["settings"]);
+      return result.settings?.backendUrl || "http://localhost:3000";
+    } catch {
+      return "http://localhost:3000";
+    }
+  }
+
+  async function performAnalysis() {
+    if (!data) {
+      showResult("No error data to analyze", true);
+      return;
+    }
+
+    // Check if we have any errors to analyze
+    const hasErrors =
+      (data.crashes?.length > 0) ||
+      (data.apiErrors?.length > 0) ||
+      (data.consoleErrors?.length > 0) ||
+      (data.pageErrors?.length > 0);
+
+    if (!hasErrors) {
+      showResult("No errors captured to analyze", true);
+      return;
+    }
+
+    // Show modal with loading state
+    analysisModal.classList.remove("hidden");
+    analysisLoading.classList.remove("hidden");
+    analysisResult.classList.add("hidden");
+    analysisError.classList.add("hidden");
+
+    try {
+      const backendUrl = await getBackendUrl();
+      
+      // Get current tab URL for context
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      // Get custom prompt if provided
+      const customPrompt = customPromptInput?.value?.trim() || null;
+
+      const payload = {
+        crashes: data.crashes || [],
+        apiErrors: data.apiErrors || [],
+        consoleErrors: data.consoleErrors || [],
+        pageErrors: data.pageErrors || [],
+        context: {
+          url: tab?.url || "Unknown",
+          timestamp: new Date().toISOString(),
+        },
+        // Include custom prompt if provided
+        ...(customPrompt && { prompt: customPrompt }),
+      };
+
+      console.log("L2 Popup: Sending analysis request to", backendUrl, customPrompt ? "(with custom prompt)" : "");
+
+      const response = await fetch(`${backendUrl}/api/analyze-errors`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server returned ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.message || "Analysis failed");
+      }
+
+      // Store the result for copying
+      lastAnalysisResult = result.analysis;
+
+      // Show the result
+      analysisLoading.classList.add("hidden");
+      analysisResult.classList.remove("hidden");
+
+      // Build summary
+      analysisSummary.innerHTML = `
+        <div class="summary-title">📊 Analysis Summary</div>
+        <div class="summary-stats">
+          <span>💥 ${result.summary?.crashesAnalyzed || 0} crashes</span>
+          <span>🌐 ${result.summary?.apiErrorsAnalyzed || 0} API errors</span>
+          <span>⚠️ ${result.summary?.consoleErrorsAnalyzed || 0} console</span>
+          <span>📋 ${result.summary?.pageErrorsAnalyzed || 0} page errors</span>
+        </div>
+      `;
+
+      // Format and display the analysis
+      analysisContent.innerHTML = formatAnalysis(result.analysis);
+
+    } catch (error) {
+      console.error("L2 Popup: Analysis error", error);
+      
+      analysisLoading.classList.add("hidden");
+      analysisError.classList.remove("hidden");
+      analysisErrorText.textContent = error.message || "Failed to analyze errors";
+    }
+  }
+
+  function formatAnalysis(text) {
+    if (!text) return "<p>No analysis available</p>";
+
+    // First, extract and preserve code blocks
+    const codeBlocks = [];
+    let formatted = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      const index = codeBlocks.length;
+      codeBlocks.push({ lang, code: code.trim() });
+      return `__CODE_BLOCK_${index}__`;
+    });
+
+    // Escape HTML (but not our code block placeholders)
+    formatted = formatted
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Convert markdown formatting to HTML
+    formatted = formatted
+      // Headers
+      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      // Inline code
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      // Lists - wrap in ul
+      .replace(/^- (.+)$/gm, "<li>$1</li>")
+      .replace(/^(\d+)\. (.+)$/gm, "<li>$2</li>")
+      // Horizontal rule
+      .replace(/^---$/gm, "<hr>")
+      // Double newlines = paragraph breaks
+      .replace(/\n\n/g, "</p><p>")
+      // Single newlines = line breaks
+      .replace(/\n/g, "<br>");
+
+    // Restore code blocks with syntax highlighting style
+    codeBlocks.forEach((block, index) => {
+      const langLabel = block.lang ? `<span class="code-lang">${block.lang}</span>` : "";
+      const escapedCode = block.code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      formatted = formatted.replace(
+        `__CODE_BLOCK_${index}__`,
+        `<div class="code-block">${langLabel}<pre><code>${escapedCode}</code></pre></div>`
+      );
+    });
+
+    // Wrap in div if not already structured
+    if (!formatted.startsWith("<h") && !formatted.startsWith("<p>") && !formatted.startsWith("<div>")) {
+      formatted = "<p>" + formatted + "</p>";
+    }
+
+    return formatted;
+  }
+
+  function closeAnalysisModal() {
+    analysisModal.classList.add("hidden");
+  }
+
+  // AI Analysis button click
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener("click", performAnalysis);
+  }
+
+  // Analysis modal close handlers
+  if (analysisModalClose) {
+    analysisModalClose.addEventListener("click", closeAnalysisModal);
+  }
+  if (analysisModalBackdrop) {
+    analysisModalBackdrop.addEventListener("click", closeAnalysisModal);
+  }
+  if (closeAnalysis) {
+    closeAnalysis.addEventListener("click", closeAnalysisModal);
+  }
+
+  // Retry analysis
+  if (retryAnalysis) {
+    retryAnalysis.addEventListener("click", performAnalysis);
+  }
+
+  // Copy analysis to clipboard
+  if (copyAnalysis) {
+    copyAnalysis.addEventListener("click", async () => {
+      if (lastAnalysisResult) {
+        try {
+          await navigator.clipboard.writeText(lastAnalysisResult);
+          copyAnalysis.textContent = "✓ Copied!";
+          setTimeout(() => {
+            copyAnalysis.textContent = "📋 Copy";
+          }, 2000);
+        } catch (e) {
+          showResult("Failed to copy: " + e.message, true);
+        }
       }
     });
   }

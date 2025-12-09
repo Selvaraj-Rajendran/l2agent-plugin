@@ -119,4 +119,142 @@ router.post("/chat", async (req, res) => {
   }
 });
 
+// Endpoint to analyze errors from Chrome extension and get root cause from LLM
+// Supports custom prompts for dynamic analysis
+router.post("/analyze-errors", async (req, res) => {
+  try {
+    const { 
+      crashes, 
+      apiErrors, 
+      consoleErrors, 
+      pageErrors, 
+      context,
+      prompt,           // Custom user prompt (optional)
+      systemPrompt      // Custom system prompt (optional)
+    } = req.body;
+
+    // Validate that we have some error data to analyze
+    const hasErrors =
+      (crashes && crashes.length > 0) ||
+      (apiErrors && apiErrors.length > 0) ||
+      (consoleErrors && consoleErrors.length > 0) ||
+      (pageErrors && pageErrors.length > 0);
+
+    if (!hasErrors) {
+      return res.status(400).json({
+        error: "No error data provided",
+        message: "Please provide at least one type of error data to analyze",
+      });
+    }
+
+    console.log("Analyzing errors:", {
+      crashes: crashes?.length || 0,
+      apiErrors: apiErrors?.length || 0,
+      consoleErrors: consoleErrors?.length || 0,
+      pageErrors: pageErrors?.length || 0,
+      url: context?.url,
+      customPrompt: !!prompt,
+    });
+
+    // Analyze errors with LLM (supports custom prompts)
+    const result = await llmService.analyzeErrors({
+      crashes: crashes || [],
+      apiErrors: apiErrors || [],
+      consoleErrors: consoleErrors || [],
+      pageErrors: pageErrors || [],
+      context: context || {},
+      customPrompt: prompt,
+      customSystemPrompt: systemPrompt,
+    });
+
+    // Extract the analysis text from the response
+    let analysis = "";
+    if (result.choices && result.choices[0]?.message?.content) {
+      // OpenAI format
+      analysis = result.choices[0].message.content;
+    } else if (result.content) {
+      // Generic format
+      analysis = result.content;
+    } else if (typeof result === "string") {
+      analysis = result;
+    } else {
+      analysis = JSON.stringify(result);
+    }
+
+    res.json({
+      success: true,
+      analysis,
+      summary: {
+        crashesAnalyzed: crashes?.length || 0,
+        apiErrorsAnalyzed: apiErrors?.length || 0,
+        consoleErrorsAnalyzed: consoleErrors?.length || 0,
+        pageErrorsAnalyzed: pageErrors?.length || 0,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error analyzing errors:", error);
+    console.error("Error stack:", error.stack);
+    res.status(500).json({
+      error: "Failed to analyze errors",
+      message: error.message,
+      details: error.response?.data || error.toString(),
+    });
+  }
+});
+
+// Dynamic analysis endpoint - analyze ANY data with custom prompt
+router.post("/analyze-dynamic", async (req, res) => {
+  try {
+    const { data, prompt, systemPrompt, context } = req.body;
+
+    if (!data && !prompt) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        message: "Please provide 'data' and/or 'prompt'",
+      });
+    }
+
+    console.log("Dynamic analysis request:", {
+      hasData: !!data,
+      dataType: typeof data,
+      hasPrompt: !!prompt,
+      hasSystemPrompt: !!systemPrompt,
+    });
+
+    // Analyze with LLM
+    const result = await llmService.analyzeDynamic({
+      data,
+      prompt,
+      systemPrompt,
+      context: context || {},
+    });
+
+    // Extract the analysis text from the response
+    let analysis = "";
+    if (result.choices && result.choices[0]?.message?.content) {
+      analysis = result.choices[0].message.content;
+    } else if (result.content) {
+      analysis = result.content;
+    } else if (typeof result === "string") {
+      analysis = result;
+    } else {
+      analysis = JSON.stringify(result);
+    }
+
+    res.json({
+      success: true,
+      analysis,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error in dynamic analysis:", error);
+    res.status(500).json({
+      error: "Failed to analyze data",
+      message: error.message,
+      details: error.response?.data || error.toString(),
+    });
+  }
+});
+
 module.exports = router;
