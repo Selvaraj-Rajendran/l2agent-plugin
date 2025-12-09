@@ -8,8 +8,6 @@
   if (window.__L2AgentContentInjected) return;
   window.__L2AgentContentInjected = true;
 
-  console.log("🟢 L2 Agent: Content script starting...");
-
   // Storage for collected data (mirror of what's collected in main world)
   const data = {
     consoleErrors: [],
@@ -29,7 +27,6 @@
       const script = document.createElement("script");
       script.src = chrome.runtime.getURL("injected.js");
       script.onload = function () {
-        console.log("🟢 L2 Agent: Main world script injected successfully");
         this.remove();
       };
       script.onerror = function (e) {
@@ -126,7 +123,7 @@
         },
       });
     } catch (e) {
-      console.log("🔴 L2 Agent: Send to background failed:", e.message);
+      // Silently fail
     }
   }
 
@@ -218,8 +215,4 @@
     }
     return true;
   });
-
-  console.log(
-    "🟢 L2 Agent: Content script ready, waiting for main world messages"
-  );
 })();

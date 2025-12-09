@@ -247,7 +247,7 @@ function handleError(type, data, tabId, tabUrl) {
       db.crashes.push(enrichedCrash);
       captureScreenshot(tabId, "crash").catch(() => {});
       notify("Page Crash", `Crash detected on ${new URL(tabUrl).hostname}`);
-
+      
       // Check if crash was caused by API failure and fetch logs
       // Only calls API if crash has failed APIs with traceId
       // If crash has no API failures, it's a UI issue - no API call needed

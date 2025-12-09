@@ -31,7 +31,7 @@
   };
 
   // API sliding window buffer - keeps last N requests until an error occurs
-  const API_BUFFER_SIZE = 4; // Keep 3 before + current
+  const API_BUFFER_SIZE = 4; // Keep 3 before + current (will store 3 before failed API)
   const API_AFTER_ERROR_COUNT = 3; // Keep 3 after error
   let apiBuffer = []; // Temporary buffer before error
   let pendingAfterError = 0; // Count of requests to capture after error
@@ -685,14 +685,14 @@
     const _send = xhr.send.bind(xhr);
     xhr.send = function (body) {
       req.start = Date.now();
-      req.body = body ? String(body).slice(0, 2000) : null;
+      req.body = body ? String(body).slice(0, 10000) : null; // Increased from 2000 to 10000
 
       xhr.addEventListener("loadend", function () {
         let responseBody = "";
         let responseHeaders = {};
 
         try {
-          responseBody = xhr.responseText?.slice(0, 5000) || "";
+          responseBody = xhr.responseText?.slice(0, 10000) || ""; // Increased from 5000 to 10000
         } catch {}
 
         // Extract all response headers
@@ -716,7 +716,11 @@
           status: xhr.status,
           statusText: xhr.statusText,
           duration: Date.now() - req.start,
+          // Request details
+          requestHeaders: req.headers,
           requestBody: req.body,
+          // Response details
+          responseHeaders,
           responseBody,
           traceId: traceInfo?.value || null,
           traceIdHeader: traceInfo?.header || null,
@@ -788,12 +792,27 @@
     const start = Date.now();
 
     let requestBody = null;
+    let requestHeaders = {};
+
     try {
       if (init.body) {
         requestBody =
           typeof init.body === "string"
-            ? init.body.slice(0, 2000)
+            ? init.body.slice(0, 10000) // Increased from 2000
             : "[Binary/FormData]";
+      }
+    } catch {}
+
+    // Extract request headers
+    try {
+      if (init.headers) {
+        if (init.headers instanceof Headers) {
+          init.headers.forEach((value, key) => {
+            requestHeaders[key] = value;
+          });
+        } else if (typeof init.headers === "object") {
+          requestHeaders = { ...init.headers };
+        }
       }
     } catch {}
 
@@ -802,9 +821,18 @@
       const duration = Date.now() - start;
 
       let responseBody = "";
+      let responseHeaders = {};
+
       try {
         const clone = response.clone();
-        responseBody = (await clone.text()).slice(0, 5000);
+        responseBody = (await clone.text()).slice(0, 10000); // Increased from 5000
+      } catch {}
+
+      // Extract response headers
+      try {
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
       } catch {}
 
       // Extract trace ID from response headers
@@ -817,7 +845,11 @@
         status: response.status,
         statusText: response.statusText,
         duration,
+        // Request details
+        requestHeaders,
         requestBody,
+        // Response details
+        responseHeaders,
         responseBody,
         traceId: traceInfo?.value || null,
         traceIdHeader: traceInfo?.header || null,
@@ -845,6 +877,9 @@
         errorType: err.name,
         errorStack: err.stack,
         duration: Date.now() - start,
+        // Request details
+        requestHeaders,
+        requestBody,
         isError: true,
         timestamp: new Date().toISOString(),
       };

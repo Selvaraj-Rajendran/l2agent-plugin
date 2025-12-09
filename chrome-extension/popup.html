@@ -1,146 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>L2 Agent - Error Tracker</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="container">
-    <!-- Consent Screen -->
-    <div id="consent-screen" class="consent-screen">
-      <div class="consent-icon">🔍</div>
-      <h1>L2 Agent</h1>
-      <p class="consent-subtitle">Error & Crash Tracker</p>
-      
-      <div class="consent-info">
-        <h3>What we collect:</h3>
-        <ul>
-          <li>🔗 API errors and failed requests</li>
-          <li>⚠️ Console errors and warnings</li>
-          <li>💥 Page crash detection</li>
-          <li>📸 Screenshots (manual & on crash)</li>
-        </ul>
-        <p class="consent-note">
-          All data is stored locally in your browser. Nothing is sent to external servers.
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>L2 Agent - Error Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Consent Screen -->
+      <div id="consent-screen" class="consent-screen">
+        <div class="consent-icon">🔍</div>
+        <h1>L2 Agent</h1>
+        <p class="consent-subtitle">Error & Crash Tracker</p>
+
+        <div class="consent-info">
+          <h3>What we collect:</h3>
+          <ul>
+            <li>🔗 API errors and failed requests</li>
+            <li>⚠️ Console errors and warnings</li>
+            <li>💥 Page crash detection</li>
+            <li>📸 Screenshots (manual & on crash)</li>
+          </ul>
+          <p class="consent-note">
+            All data is stored locally in your browser. Nothing is sent to
+            external servers.
+          </p>
+        </div>
+
+        <button id="enable-btn" class="btn btn-enable">
+          ✓ Enable Tracking
+        </button>
+
+        <p class="consent-footer">
+          You can disable tracking anytime from settings.
         </p>
       </div>
 
-      <button id="enable-btn" class="btn btn-enable">
-        ✓ Enable Tracking
-      </button>
-      
-      <p class="consent-footer">
-        You can disable tracking anytime from settings.
-      </p>
-    </div>
+      <!-- Main Dashboard (hidden until consent) -->
+      <div id="dashboard" class="dashboard hidden">
+        <header>
+          <div class="header-row">
+            <h1>🔍 L2 Agent</h1>
+            <div class="header-controls">
+              <button
+                id="toggle-tracking"
+                class="tracking-toggle active"
+                title="Tracking Enabled"
+              >
+                <span class="toggle-dot"></span>
+              </button>
+              <span class="version">v1.0</span>
+            </div>
+          </div>
+          <p class="subtitle">Error & Crash Tracker</p>
+        </header>
 
-    <!-- Main Dashboard (hidden until consent) -->
-    <div id="dashboard" class="dashboard hidden">
-      <header>
-        <div class="header-row">
-          <h1>🔍 L2 Agent</h1>
-          <div class="header-controls">
-            <button id="toggle-tracking" class="tracking-toggle active" title="Tracking Enabled">
-              <span class="toggle-dot"></span>
+        <main>
+          <!-- Status Section -->
+          <div class="status" id="status">
+            <span class="status-indicator" id="status-dot"></span>
+            <span id="status-text">Initializing...</span>
+          </div>
+
+          <!-- Stats Cards -->
+          <div class="stats-grid">
+            <div class="stat-card crash" id="crash-card">
+              <span class="stat-icon">💥</span>
+              <span class="stat-value" id="crash-count">0</span>
+              <span class="stat-label">Crashes</span>
+            </div>
+            <div class="stat-card api" id="api-card">
+              <span class="stat-icon">🔗</span>
+              <span class="stat-value" id="api-count">0</span>
+              <span class="stat-label">API Errors</span>
+            </div>
+            <div class="stat-card console" id="console-card">
+              <span class="stat-icon">⚠️</span>
+              <span class="stat-value" id="console-count">0</span>
+              <span class="stat-label">Console</span>
+            </div>
+            <div class="stat-card screenshot" id="screenshot-card">
+              <span class="stat-icon">📸</span>
+              <span class="stat-value" id="screenshot-count">0</span>
+              <span class="stat-label">Screenshots</span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="button-group single">
+            <button id="capture-btn" class="btn btn-secondary">
+              📷 Capture Screenshot
             </button>
-            <span class="version">v1.0</span>
+          </div>
+
+          <!-- Error List Toggle -->
+          <div class="tabs">
+            <button class="tab active" data-tab="crashes">Crashes</button>
+            <button class="tab" data-tab="api">API Errors</button>
+            <button class="tab" data-tab="console">Console</button>
+            <button class="tab" data-tab="screenshots">Screenshots</button>
+          </div>
+
+          <!-- Error List -->
+          <div class="error-list" id="error-list">
+            <div class="empty-state" id="empty-state">
+              <span class="empty-icon">✓</span>
+              <p>No errors detected</p>
+            </div>
+          </div>
+
+          <!-- Export Buttons -->
+          <div class="export-section two-col">
+            <button id="export-btn" class="btn btn-primary">
+              📄 Export Report
+            </button>
+            <button id="clear-btn" class="btn btn-danger">🗑️ Clear All</button>
+          </div>
+
+          <!-- LLM Analysis Button -->
+          <div class="button-group single">
+            <button id="analyze-all-btn" class="btn btn-secondary">
+              🤖 Analyze All Errors with LLM
+            </button>
+          </div>
+
+          <!-- Result Message -->
+          <div id="result" class="result"></div>
+        </main>
+      </div>
+
+      <!-- Screenshot Modal -->
+      <div id="screenshot-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <div class="modal-header">
+            <span id="modal-title">Screenshot</span>
+            <button class="modal-close" id="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <img id="screenshot-img" src="" alt="Screenshot" />
+            <div class="screenshot-info">
+              <p>
+                <strong>Reason:</strong> <span id="screenshot-reason"></span>
+              </p>
+              <p><strong>Time:</strong> <span id="screenshot-time"></span></p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="download-screenshot" class="btn btn-primary">
+              📥 Download
+            </button>
           </div>
         </div>
-        <p class="subtitle">Error & Crash Tracker</p>
-      </header>
+      </div>
 
-      <main>
-        <!-- Status Section -->
-        <div class="status" id="status">
-          <span class="status-indicator" id="status-dot"></span>
-          <span id="status-text">Initializing...</span>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-          <div class="stat-card crash" id="crash-card">
-            <span class="stat-icon">💥</span>
-            <span class="stat-value" id="crash-count">0</span>
-            <span class="stat-label">Crashes</span>
+      <!-- API Details Modal -->
+      <div id="api-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content api-details-modal">
+          <div class="modal-header">
+            <span id="api-modal-title">API Request Details</span>
+            <button class="modal-close" id="api-modal-close">&times;</button>
           </div>
-          <div class="stat-card api" id="api-card">
-            <span class="stat-icon">🔗</span>
-            <span class="stat-value" id="api-count">0</span>
-            <span class="stat-label">API Errors</span>
+          <div class="modal-body" style="max-height: 500px; overflow-y: auto">
+            <div class="api-section">
+              <h3>Request</h3>
+              <p><strong>Method:</strong> <span id="api-method"></span></p>
+              <p>
+                <strong>URL:</strong>
+                <span id="api-url" style="word-break: break-all"></span>
+              </p>
+              <p><strong>Status:</strong> <span id="api-status"></span></p>
+              <p><strong>Duration:</strong> <span id="api-duration"></span></p>
+              <p><strong>Trace ID:</strong> <span id="api-trace-id"></span></p>
+
+              <h4>Request Headers</h4>
+              <pre
+                id="api-request-headers"
+                style="
+                  padding: 10px;
+                  border-radius: 4px;
+                  overflow-x: auto;
+                  font-size: 11px;
+                "
+              ></pre>
+
+              <h4>Request Payload</h4>
+              <pre
+                id="api-request-body"
+                style="
+                  padding: 10px;
+                  border-radius: 4px;
+                  overflow-x: auto;
+                  font-size: 11px;
+                  max-height: 200px;
+                  overflow-y: auto;
+                "
+              ></pre>
+            </div>
+
+            <div class="api-section">
+              <h3>Response</h3>
+              <h4>Response Headers</h4>
+              <pre
+                id="api-response-headers"
+                style="
+                  padding: 10px;
+                  border-radius: 4px;
+                  overflow-x: auto;
+                  font-size: 11px;
+                "
+              ></pre>
+
+              <h4>Response Body</h4>
+              <pre
+                id="api-response-body"
+                style="
+                  padding: 10px;
+                  border-radius: 4px;
+                  overflow-x: auto;
+                  font-size: 11px;
+                  max-height: 200px;
+                  overflow-y: auto;
+                "
+              ></pre>
+            </div>
           </div>
-          <div class="stat-card console" id="console-card">
-            <span class="stat-icon">⚠️</span>
-            <span class="stat-value" id="console-count">0</span>
-            <span class="stat-label">Console</span>
-          </div>
-          <div class="stat-card screenshot" id="screenshot-card">
-            <span class="stat-icon">📸</span>
-            <span class="stat-value" id="screenshot-count">0</span>
-            <span class="stat-label">Screenshots</span>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="button-group single">
-          <button id="capture-btn" class="btn btn-secondary">
-            📷 Capture Screenshot
-          </button>
-        </div>
-
-        <!-- Error List Toggle -->
-        <div class="tabs">
-          <button class="tab active" data-tab="crashes">Crashes</button>
-          <button class="tab" data-tab="api">API Errors</button>
-          <button class="tab" data-tab="console">Console</button>
-          <button class="tab" data-tab="screenshots">Screenshots</button>
-        </div>
-
-        <!-- Error List -->
-        <div class="error-list" id="error-list">
-          <div class="empty-state" id="empty-state">
-            <span class="empty-icon">✓</span>
-            <p>No errors detected</p>
-          </div>
-        </div>
-
-        <!-- Export Buttons -->
-        <div class="export-section two-col">
-          <button id="export-btn" class="btn btn-primary">
-            📄 Export Report
-          </button>
-          <button id="clear-btn" class="btn btn-danger">
-            🗑️ Clear All
-          </button>
-        </div>
-
-        <!-- Result Message -->
-        <div id="result" class="result"></div>
-      </main>
-    </div>
-
-    <!-- Screenshot Modal -->
-    <div id="screenshot-modal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <span id="modal-title">Screenshot</span>
-          <button class="modal-close" id="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <img id="screenshot-img" src="" alt="Screenshot">
-          <div class="screenshot-info">
-            <p><strong>Reason:</strong> <span id="screenshot-reason"></span></p>
-            <p><strong>Time:</strong> <span id="screenshot-time"></span></p>
+          <div class="modal-footer">
+            <button id="copy-api-details" class="btn btn-secondary">
+              📋 Copy Details
+            </button>
+            <button id="send-to-llm" class="btn btn-primary">
+              🤖 Analyze with LLM
+            </button>
           </div>
         </div>
-        <div class="modal-footer">
-          <button id="download-screenshot" class="btn btn-primary">📥 Download</button>
+      </div>
+
+      <!-- LLM Results Modal -->
+      <div id="llm-results-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content llm-results-modal">
+          <div class="modal-header">
+            <span id="llm-modal-title">🤖 LLM Analysis Results</span>
+            <button class="modal-close" id="llm-modal-close">&times;</button>
+          </div>
+          <div class="modal-body" style="max-height: 600px; overflow-y: auto">
+            <!-- Tags Section -->
+            <div class="llm-section" id="llm-tags-section">
+              <h3>🏷️ Classification</h3>
+              <div class="llm-tags" id="llm-tags"></div>
+            </div>
+
+            <!-- Root Cause Section -->
+            <div class="llm-section" id="llm-root-cause-section">
+              <h3>🔍 Root Cause</h3>
+              <div class="llm-summary" id="llm-summary"></div>
+              <div class="llm-details" id="llm-details"></div>
+            </div>
+
+            <!-- Affected Components Section -->
+            <div class="llm-section" id="llm-components-section">
+              <h3>⚙️ Affected Components</h3>
+              <div class="llm-components" id="llm-components"></div>
+            </div>
+
+            <!-- Recommendations Section -->
+            <div class="llm-section" id="llm-recommendations-section">
+              <h3>💡 Recommendations</h3>
+              <div class="llm-recommendations" id="llm-recommendations"></div>
+            </div>
+
+            <!-- Additional Context Section -->
+            <div class="llm-section" id="llm-context-section">
+              <h3>📝 Additional Context</h3>
+              <div class="llm-context" id="llm-context"></div>
+            </div>
+
+            <!-- Raw Response (Collapsible) -->
+            <div class="llm-section">
+              <details>
+                <summary
+                  style="cursor: pointer; font-weight: bold; padding: 10px 0"
+                >
+                  🔧 Raw Response (for debugging)
+                </summary>
+                <pre
+                  id="llm-raw-response"
+                  style="
+                    padding: 10px;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                    font-size: 11px;
+                    max-height: 300px;
+                    overflow-y: auto;
+                  "
+                ></pre>
+              </details>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="copy-llm-results" class="btn btn-secondary">
+              📋 Copy Analysis
+            </button>
+            <button id="download-llm-results" class="btn btn-primary">
+              📥 Download as File
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  <script src="popup.js"></script>
-</body>
+    <script src="popup.js"></script>
+  </body>
 </html>
